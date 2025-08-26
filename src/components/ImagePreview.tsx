@@ -5,9 +5,10 @@ interface ImagePreviewProps {
   imageSrc: string;
   fileName: string;
   fileSize: number;
+  originalImageSrc?: string;
 }
 
-const ImagePreview: React.FC<ImagePreviewProps> = ({ imageSrc, fileName, fileSize }) => {
+const ImagePreview: React.FC<ImagePreviewProps> = ({ imageSrc, fileName, fileSize, originalImageSrc }) => {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copying' | 'copied' | 'failed'>('idle');
   
   const formatFileSize = (bytes: number): string => {
@@ -73,15 +74,42 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({ imageSrc, fileName, fileSiz
 
   return (
     <div className="flex flex-col items-center gap-6 w-full">
-      <div className="bg-card rounded-xl p-6 shadow-card border border-border">
-        <img
-          src={imageSrc}
-          alt="Imagem convertida"
-          draggable="true"
-          onDragStart={handleDragStart}
-          className="cursor-grab rounded-lg shadow-lg max-w-full h-auto max-h-64 object-contain tech-glow"
-          title={`Arraste para salvar como ${fileName}`}
-        />
+      {/* Comparação Antes/Depois */}
+      <div className="w-full max-w-4xl">
+        <h3 className="text-xl font-semibold gradient-text mb-4 text-center">
+          Comparação: Antes vs Depois
+        </h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Original */}
+          {originalImageSrc && (
+            <div className="bg-card rounded-xl p-4 shadow-card border border-border">
+              <h4 className="text-sm font-medium text-muted-foreground mb-3 text-center">
+                Original
+              </h4>
+              <img
+                src={originalImageSrc}
+                alt="Imagem original"
+                className="rounded-lg shadow-lg max-w-full h-auto max-h-48 object-contain mx-auto"
+              />
+            </div>
+          )}
+          
+          {/* Convertida */}
+          <div className="bg-card rounded-xl p-4 shadow-card border border-border">
+            <h4 className="text-sm font-medium text-primary mb-3 text-center">
+              Convertida ({formatFileSize(fileSize)})
+            </h4>
+            <img
+              src={imageSrc}
+              alt="Imagem convertida"
+              draggable="true"
+              onDragStart={handleDragStart}
+              className="cursor-grab rounded-lg shadow-lg max-w-full h-auto max-h-48 object-contain mx-auto tech-glow"
+              title={`Arraste para salvar como ${fileName}`}
+            />
+          </div>
+        </div>
       </div>
       
       <div className="text-center">

@@ -22,32 +22,39 @@ const blobToDataUrl = (blob) => {
 };
 
 const generateOptimizedWebP = async (canvas) => {
-    let minQuality = 0.7;
+    let minQuality = 0.85;
     let maxQuality = 1.0;
     let bestBlob = null;
 
     const TARGET_MIN_BYTES = 50 * 1024;
     const TARGET_MAX_BYTES = 100 * 1024;
-    const ITERATIONS = 7;
+    const ITERATIONS = 12;
 
     const getWebpBlob = (quality) => canvas.convertToBlob({ type: 'image/webp', quality });
 
+    // Primeira tentativa com qualidade alta
+    let currentBlob = await getWebpBlob(0.95);
+    bestBlob = currentBlob;
+
+    // Se já está no range ideal, retorna
+    if (currentBlob.size >= TARGET_MIN_BYTES && currentBlob.size <= TARGET_MAX_BYTES) {
+        return { blob: currentBlob, size: currentBlob.size };
+    }
+
+    // Busca binária refinada para encontrar qualidade ideal
     for (let i = 0; i < ITERATIONS; i++) {
         const currentQuality = (minQuality + maxQuality) / 2;
         const blob = await getWebpBlob(currentQuality);
-        bestBlob = blob;
-
-        if (blob.size > TARGET_MAX_BYTES) {
-            maxQuality = currentQuality;
-        } else if (blob.size < TARGET_MIN_BYTES) {
-            minQuality = currentQuality;
-        } else {
+        
+        if (blob.size >= TARGET_MIN_BYTES && blob.size <= TARGET_MAX_BYTES) {
+            bestBlob = blob;
             break;
+        } else if (blob.size > TARGET_MAX_BYTES) {
+            maxQuality = currentQuality;
+        } else {
+            minQuality = currentQuality;
+            bestBlob = blob; // Manter o blob mais próximo do mínimo
         }
-    }
-    
-    if (bestBlob && bestBlob.size > TARGET_MAX_BYTES) {
-       bestBlob = await getWebpBlob(maxQuality);
     }
     
     if (!bestBlob) {
@@ -60,6 +67,12 @@ const generateOptimizedWebP = async (canvas) => {
 self.onmessage = async (event) => {
     const { type, imageDataUrl } = event.data;
 
+    // Health check response
+    if (type === 'HEALTH_CHECK') {
+        self.postMessage({ status: 'health' });
+        return;
+    }
+
     try {
         const response = await fetch(imageDataUrl);
         const blob = await response.blob();
@@ -70,6 +83,10 @@ self.onmessage = async (event) => {
         if (!ctx) {
             throw new Error('Não foi possível obter o contexto do OffscreenCanvas.');
         }
+
+        // Use high-quality image smoothing
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
 
         const { width: imgWidth, height: imgHeight } = imageBitmap;
 
@@ -117,7 +134,7 @@ const Index: React.FC = () => {
   const workerRef = useRef<Worker | null>(null);
   const { toast } = useToast();
 
-  // Initialize Service Worker and Web Worker
+  // Initialize Service Worker and Web Worker with double checks
   useEffect(() => {
     const init = async () => {
       // Register Service Worker
@@ -142,46 +159,78 @@ const Index: React.FC = () => {
 
     init();
 
-    // Initialize Web Worker
-    const workerBlob = new Blob([imageWorkerCode], { type: 'application/javascript' });
-    const workerUrl = URL.createObjectURL(workerBlob);
-    const worker = new Worker(workerUrl);
-    workerRef.current = worker;
-
-    worker.onmessage = (event: MessageEvent<{status: 'success' | 'error', blob?: Blob, size?: number, message?: string}>) => {
-      const { status, blob, size, message } = event.data;
-      if (status === 'success' && blob && size !== undefined) {
-        // Save to IndexedDB and generate URL
-        saveImageToDB(blob).then(filename => {
-          const imageUrl = generateImageURL(filename);
-          setConvertedImageUrl(imageUrl);
-          setConvertedFileName(filename);
-          setConvertedSize(size);
-          setStep('finished');
-          
-          toast({
-            title: "✨ Sucesso!",
-            description: `Imagem convertida: ${filename} (${(size / 1024).toFixed(1)} KB)`
+    // Initialize Web Worker with double checks
+    const createWorker = () => {
+      const workerBlob = new Blob([imageWorkerCode], { type: 'application/javascript' });
+      const workerUrl = URL.createObjectURL(workerBlob);
+      const worker = new Worker(workerUrl);
+      
+      // Double check: verify worker is responsive
+      const healthCheck = () => {
+        if (!workerRef.current) return;
+        workerRef.current.postMessage({ type: 'HEALTH_CHECK' });
+      };
+      
+      worker.onerror = (error) => {
+        console.error('Worker error:', error);
+        setTimeout(() => {
+          if (workerRef.current) {
+            workerRef.current.terminate();
+            workerRef.current = createWorker();
+          }
+        }, 1000);
+      };
+      
+      // Health check every 30 seconds
+      const healthInterval = setInterval(healthCheck, 30000);
+      
+      worker.onmessage = (event: MessageEvent<{status: 'success' | 'error' | 'health', blob?: Blob, size?: number, message?: string}>) => {
+        const { status, blob, size, message } = event.data;
+        
+        if (status === 'health') {
+          return; // Health check response
+        }
+        
+        if (status === 'success' && blob && size !== undefined) {
+          // Save to IndexedDB and generate URL
+          saveImageToDB(blob).then(filename => {
+            const imageUrl = generateImageURL(filename);
+            setConvertedImageUrl(imageUrl);
+            setConvertedFileName(filename);
+            setConvertedSize(size);
+            setStep('finished');
+            
+            toast({
+              title: "✨ Sucesso!",
+              description: `Imagem convertida: ${filename} (${(size / 1024).toFixed(1)} KB)`
+            });
+          }).catch(err => {
+            console.error('Erro ao salvar imagem:', err);
+            setError('Erro ao salvar a imagem processada.');
+            setStep('idle');
           });
-        }).catch(err => {
-          console.error('Erro ao salvar imagem:', err);
-          setError('Erro ao salvar a imagem processada.');
+        } else {
+          setError(message || 'Falha ao processar a imagem.');
           setStep('idle');
-        });
-      } else {
-        setError(message || 'Falha ao processar a imagem.');
-        setStep('idle');
-        toast({
-          title: "Erro",
-          description: message || 'Falha ao processar a imagem.',
-          variant: "destructive"
-        });
-      }
+          toast({
+            title: "Erro",
+            description: message || 'Falha ao processar a imagem.',
+            variant: "destructive"
+          });
+        }
+      };
+      
+      return worker;
     };
+    
+    workerRef.current = createWorker();
+
 
     return () => {
-      worker.terminate();
-      URL.revokeObjectURL(workerUrl);
+      if (workerRef.current) {
+        workerRef.current.terminate();
+        workerRef.current = null;
+      }
     };
   }, [toast]);
 
@@ -377,6 +426,7 @@ const Index: React.FC = () => {
               imageSrc={convertedImageUrl}
               fileName={convertedFileName}
               fileSize={convertedSize}
+              originalImageSrc={originalImage}
             />
             
             <div className="flex flex-col sm:flex-row gap-4">

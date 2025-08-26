@@ -36,6 +36,16 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onSave, onCancel 
     }
   };
 
+  const makeSquare = () => {
+    if (!imgRef.current) return;
+    
+    const minDimension = Math.min(crop.width, crop.height);
+    const maxSize = Math.min(imageSize.width - crop.x, imageSize.height - crop.y);
+    const newSize = Math.min(minDimension, maxSize);
+    
+    setCrop(prev => ({ ...prev, width: newSize, height: newSize }));
+  };
+
   const getCroppedCanvas = (): HTMLCanvasElement => {
     if (!imgRef.current) throw new Error('Image not loaded');
     
@@ -49,6 +59,10 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onSave, onCancel 
     const ctx = canvas.getContext('2d');
 
     if (!ctx) throw new Error('Could not get canvas context.');
+
+    // Use high-quality smoothing
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
     ctx.drawImage(
       image,
@@ -183,13 +197,21 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onSave, onCancel 
               onMouseDown={(e) => handleMouseDown(e)}
             >
               {/* Resize handles */}
-              {['top-left', 'top-right', 'bottom-left', 'bottom-right'].map(handle => (
+              {['top-left', 'top-right', 'bottom-left', 'bottom-right', 'top', 'bottom', 'left', 'right'].map(handle => (
                 <div
                   key={handle}
-                  className="absolute w-3 h-3 bg-primary border border-primary-foreground cursor-nw-resize"
+                  className={`absolute bg-primary border border-primary-foreground ${
+                    ['top', 'bottom', 'left', 'right'].includes(handle) 
+                      ? 'w-2 h-2 cursor-resize' 
+                      : 'w-3 h-3 cursor-nw-resize'
+                  }`}
                   style={{
-                    [handle.includes('top') ? 'top' : 'bottom']: -6,
-                    [handle.includes('left') ? 'left' : 'right']: -6,
+                    [handle.includes('top') ? 'top' : handle.includes('bottom') ? 'bottom' : 'top']: 
+                      handle.includes('top') ? -6 : handle.includes('bottom') ? -6 : '50%',
+                    [handle.includes('left') ? 'left' : handle.includes('right') ? 'right' : 'left']: 
+                      handle.includes('left') ? -6 : handle.includes('right') ? -6 : '50%',
+                    ...(handle === 'top' || handle === 'bottom' ? { transform: 'translateX(-50%)' } : {}),
+                    ...(handle === 'left' || handle === 'right' ? { transform: 'translateY(-50%)' } : {}),
                   }}
                   onMouseDown={(e) => handleMouseDown(e, handle)}
                 />
@@ -200,7 +222,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onSave, onCancel 
       </div>
 
       <p className="text-muted-foreground text-center max-w-md">
-        Arraste para mover a área de seleção. Use os quadrados nos cantos para redimensionar.
+        Arraste para mover a área de seleção. Use os pontos para redimensionar livremente.
       </p>
 
       <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
@@ -210,6 +232,14 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onSave, onCancel 
           className="w-full sm:w-auto"
         >
           Cancelar
+        </Button>
+        
+        <Button
+          onClick={makeSquare}
+          variant="outline"
+          className="w-full sm:w-auto"
+        >
+          📐 Tornar 1:1
         </Button>
         
         <Button
