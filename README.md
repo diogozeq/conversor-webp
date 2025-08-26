@@ -1,73 +1,56 @@
-# Welcome to your Lovable project
+# Image Converter Pro 🚀
 
-## Project info
+Um conversor de imagens futurista que resolve o problema do nome de arquivo perdido ao arrastar imagens.
 
-**URL**: https://lovable.dev/projects/d74619dc-18be-49e9-9791-2699ccc92861
+## 🎯 Problema Resolvido
 
-## How can I edit this code?
+Quando você converte uma imagem e ela vira uma Data URL (`data:image/webp;base64,...`), ao arrastá-la para outro site, ela sempre recebe um nome genérico como `download.webp`. 
 
-There are several ways of editing your application.
+**Nossa solução:** Service Worker + IndexedDB para simular URLs reais e manter nomes de arquivo perfeitos!
 
-**Use Lovable**
+## ✨ Funcionalidades
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/d74619dc-18be-49e9-9791-2699ccc92861) and start prompting.
+- 🖼️ **Conversão para WebP 1000x1000** com otimização automática de qualidade (50-100KB)
+- 🎯 **Nome de arquivo preservado** ao arrastar para qualquer lugar
+- ✂️ **Editor/Recortador** integrado para ajustes precisos
+- 📋 **Copiar para clipboard** com conversão automática para PNG
+- 🗂️ **Drag & Drop** e **Ctrl+V** para máxima conveniência
+- 🧹 **Limpeza automática** de arquivos antigos (>24h)
+- 🌟 **Interface futurista** com animações e efeitos visuais
 
-Changes made via Lovable will be committed automatically to this repo.
+## 🔧 Tecnologias
 
-**Use your preferred IDE**
+- **Frontend:** React + TypeScript + Tailwind CSS
+- **Storage:** IndexedDB para armazenamento local
+- **Worker:** Service Worker para interceptação de requisições
+- **Processing:** Web Worker para otimização de imagens
+- **UI:** shadcn/ui components com design system customizado
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## 🎨 Design System
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- **Cores:** Tema tech escuro com acentos cyan (#00d9ff)
+- **Gradientes:** Primário, secundário e de background
+- **Animações:** Float, pulse-glow, tech-glow effects
+- **Responsivo:** Mobile-first design
 
-Follow these steps:
+## 🚀 Como Funciona
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+1. **Upload:** Arraste uma imagem ou use Ctrl+V
+2. **Processamento:** Web Worker otimiza para WebP 1000x1000
+3. **Armazenamento:** IndexedDB salva com nome único
+4. **URL Falsa:** Gera `/imagens-geradas/nome-unico.webp`
+5. **Interceptação:** Service Worker serve o arquivo real
+6. **Resultado:** Nome preservado ao arrastar! ✨
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## 📱 Como Usar
 
-# Step 3: Install the necessary dependencies.
-npm i
+1. Arraste uma imagem para a área de upload
+2. Aguarde a conversão automática
+3. Use "Editar/Recortar" se necessário
+4. Baixe ou arraste a imagem - o nome será mantido!
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+**Dica:** Arraste a imagem convertida para o Gmail, Notion, ou qualquer site - o nome correto será preservado!
 
-**Edit a file directly in GitHub**
+---
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/d74619dc-18be-49e9-9791-2699ccc92861) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+*Construído com Lovable - A solução definitiva para o problema de nomes de arquivo em conversores de imagem.*
