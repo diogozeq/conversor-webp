@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import Spinner from './Spinner';
@@ -16,6 +17,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onSave, onCancel 
   const [isResizing, setIsResizing] = useState(false);
   const [resizeHandle, setResizeHandle] = useState<string>('');
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, crop: { x: 0, y: 0, width: 0, height: 0 } });
   
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -26,7 +28,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onSave, onCancel 
       setImageSize({ width: rect.width, height: rect.height });
       
       // Center the initial crop
-      const initialSize = Math.min(rect.width, rect.height) * 0.8;
+      const initialSize = Math.min(rect.width, rect.height) * 0.6;
       setCrop({
         x: (rect.width - initialSize) / 2,
         y: (rect.height - initialSize) / 2,
@@ -40,10 +42,11 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onSave, onCancel 
     if (!imgRef.current) return;
     
     const minDimension = Math.min(crop.width, crop.height);
-    const maxSize = Math.min(imageSize.width - crop.x, imageSize.height - crop.y);
-    const newSize = Math.min(minDimension, maxSize);
+    const maxX = imageSize.width - crop.x;
+    const maxY = imageSize.height - crop.y;
+    const maxSize = Math.min(minDimension, maxX, maxY);
     
-    setCrop(prev => ({ ...prev, width: newSize, height: newSize }));
+    setCrop(prev => ({ ...prev, width: maxSize, height: maxSize }));
   };
 
   const getCroppedCanvas = (): HTMLCanvasElement => {
@@ -93,57 +96,93 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onSave, onCancel 
 
   const handleMouseDown = (e: React.MouseEvent, handle?: string) => {
     e.preventDefault();
+    e.stopPropagation();
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
+
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
 
     if (handle) {
       setIsResizing(true);
       setResizeHandle(handle);
+      setResizeStart({
+        x: mouseX,
+        y: mouseY,
+        crop: { ...crop }
+      });
     } else {
       setIsDragging(true);
+      setDragStart({
+        x: mouseX - crop.x,
+        y: mouseY - crop.y
+      });
     }
-    
-    setDragStart({
-      x: e.clientX - rect.left - crop.x,
-      y: e.clientY - rect.top - crop.y
-    });
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || (!isDragging && !isResizing)) return;
+    
     const rect = containerRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
 
     if (isDragging) {
-      const newX = Math.max(0, Math.min(x - dragStart.x, imageSize.width - crop.width));
-      const newY = Math.max(0, Math.min(y - dragStart.y, imageSize.height - crop.height));
+      const newX = Math.max(0, Math.min(mouseX - dragStart.x, imageSize.width - crop.width));
+      const newY = Math.max(0, Math.min(mouseY - dragStart.y, imageSize.height - crop.height));
       setCrop(prev => ({ ...prev, x: newX, y: newY }));
     } else if (isResizing) {
-      const minSize = 50;
-      let newWidth = crop.width;
-      let newHeight = crop.height;
-      let newX = crop.x;
-      let newY = crop.y;
+      const deltaX = mouseX - resizeStart.x;
+      const deltaY = mouseY - resizeStart.y;
+      const startCrop = resizeStart.crop;
+      
+      let newCrop = { ...startCrop };
+      const minSize = 30;
 
-      if (resizeHandle.includes('right')) {
-        newWidth = Math.max(minSize, Math.min(x - crop.x, imageSize.width - crop.x));
-      }
-      if (resizeHandle.includes('bottom')) {
-        newHeight = Math.max(minSize, Math.min(y - crop.y, imageSize.height - crop.y));
-      }
-      if (resizeHandle.includes('left')) {
-        const maxWidth = crop.x + crop.width;
-        newWidth = Math.max(minSize, maxWidth - x);
-        newX = Math.max(0, x);
-      }
-      if (resizeHandle.includes('top')) {
-        const maxHeight = crop.y + crop.height;
-        newHeight = Math.max(minSize, maxHeight - y);
-        newY = Math.max(0, y);
+      switch (resizeHandle) {
+        case 'top-left':
+          newCrop.width = Math.max(minSize, startCrop.width - deltaX);
+          newCrop.height = Math.max(minSize, startCrop.height - deltaY);
+          newCrop.x = startCrop.x + (startCrop.width - newCrop.width);
+          newCrop.y = startCrop.y + (startCrop.height - newCrop.height);
+          break;
+        case 'top-right':
+          newCrop.width = Math.max(minSize, startCrop.width + deltaX);
+          newCrop.height = Math.max(minSize, startCrop.height - deltaY);
+          newCrop.y = startCrop.y + (startCrop.height - newCrop.height);
+          break;
+        case 'bottom-left':
+          newCrop.width = Math.max(minSize, startCrop.width - deltaX);
+          newCrop.height = Math.max(minSize, startCrop.height + deltaY);
+          newCrop.x = startCrop.x + (startCrop.width - newCrop.width);
+          break;
+        case 'bottom-right':
+          newCrop.width = Math.max(minSize, startCrop.width + deltaX);
+          newCrop.height = Math.max(minSize, startCrop.height + deltaY);
+          break;
+        case 'top':
+          newCrop.height = Math.max(minSize, startCrop.height - deltaY);
+          newCrop.y = startCrop.y + (startCrop.height - newCrop.height);
+          break;
+        case 'bottom':
+          newCrop.height = Math.max(minSize, startCrop.height + deltaY);
+          break;
+        case 'left':
+          newCrop.width = Math.max(minSize, startCrop.width - deltaX);
+          newCrop.x = startCrop.x + (startCrop.width - newCrop.width);
+          break;
+        case 'right':
+          newCrop.width = Math.max(minSize, startCrop.width + deltaX);
+          break;
       }
 
-      setCrop({ x: newX, y: newY, width: newWidth, height: newHeight });
+      // Constrain to image bounds
+      newCrop.x = Math.max(0, Math.min(newCrop.x, imageSize.width - newCrop.width));
+      newCrop.y = Math.max(0, Math.min(newCrop.y, imageSize.height - newCrop.height));
+      newCrop.width = Math.min(newCrop.width, imageSize.width - newCrop.x);
+      newCrop.height = Math.min(newCrop.height, imageSize.height - newCrop.y);
+
+      setCrop(newCrop);
     }
   };
 
@@ -196,33 +235,34 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onSave, onCancel 
               }}
               onMouseDown={(e) => handleMouseDown(e)}
             >
-              {/* Resize handles */}
-              {['top-left', 'top-right', 'bottom-left', 'bottom-right', 'top', 'bottom', 'left', 'right'].map(handle => {
-                const isCorner = ['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(handle);
-                const isHorizontal = ['left', 'right'].includes(handle);
-                const isVertical = ['top', 'bottom'].includes(handle);
-                
-                let cursor = 'cursor-move';
-                if (handle === 'top-left' || handle === 'bottom-right') cursor = 'cursor-nw-resize';
-                if (handle === 'top-right' || handle === 'bottom-left') cursor = 'cursor-ne-resize';
-                if (isVertical) cursor = 'cursor-ns-resize';
-                if (isHorizontal) cursor = 'cursor-ew-resize';
-                
+              {/* Corner handles */}
+              {['top-left', 'top-right', 'bottom-left', 'bottom-right'].map(handle => (
+                <div
+                  key={handle}
+                  className="absolute w-4 h-4 bg-primary border-2 border-background cursor-nw-resize hover:bg-primary/80 transition-colors z-10 rounded-full"
+                  style={{
+                    ...(handle.includes('top') ? { top: -8 } : { bottom: -8 }),
+                    ...(handle.includes('left') ? { left: -8 } : { right: -8 }),
+                    ...(handle === 'top-right' || handle === 'bottom-left' ? { cursor: 'ne-resize' } : {}),
+                  }}
+                  onMouseDown={(e) => handleMouseDown(e, handle)}
+                />
+              ))}
+              
+              {/* Edge handles */}
+              {['top', 'bottom', 'left', 'right'].map(handle => {
+                const isVertical = handle === 'top' || handle === 'bottom';
                 return (
                   <div
                     key={handle}
-                    className={`absolute bg-primary border-2 border-background ${cursor} ${
-                      isCorner ? 'w-4 h-4 rounded-full' : isHorizontal ? 'w-2 h-6' : 'w-6 h-2'
-                    } hover:bg-primary/80 transition-colors z-10`}
+                    className={`absolute bg-primary border border-background hover:bg-primary/80 transition-colors z-10 ${
+                      isVertical ? 'w-8 h-2 cursor-ns-resize' : 'w-2 h-8 cursor-ew-resize'
+                    }`}
                     style={{
-                      ...(handle.includes('top') ? { top: -8 } : {}),
-                      ...(handle.includes('bottom') ? { bottom: -8 } : {}),
-                      ...(handle.includes('left') ? { left: -8 } : {}),
-                      ...(handle.includes('right') ? { right: -8 } : {}),
-                      ...(handle === 'top' ? { top: -8, left: '50%', transform: 'translateX(-50%)' } : {}),
-                      ...(handle === 'bottom' ? { bottom: -8, left: '50%', transform: 'translateX(-50%)' } : {}),
-                      ...(handle === 'left' ? { left: -8, top: '50%', transform: 'translateY(-50%)' } : {}),
-                      ...(handle === 'right' ? { right: -8, top: '50%', transform: 'translateY(-50%)' } : {}),
+                      ...(handle === 'top' ? { top: -4, left: '50%', transform: 'translateX(-50%)' } : {}),
+                      ...(handle === 'bottom' ? { bottom: -4, left: '50%', transform: 'translateX(-50%)' } : {}),
+                      ...(handle === 'left' ? { left: -4, top: '50%', transform: 'translateY(-50%)' } : {}),
+                      ...(handle === 'right' ? { right: -4, top: '50%', transform: 'translateY(-50%)' } : {}),
                     }}
                     onMouseDown={(e) => handleMouseDown(e, handle)}
                   />
@@ -234,7 +274,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onSave, onCancel 
       </div>
 
       <p className="text-muted-foreground text-center max-w-md">
-        Arraste para mover a área de seleção. Use os pontos para redimensionar livremente.
+        Arraste para mover a área de seleção. Use os pontos e bordas para redimensionar livremente.
       </p>
 
       <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
