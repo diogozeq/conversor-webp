@@ -197,25 +197,37 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onSave, onCancel 
               onMouseDown={(e) => handleMouseDown(e)}
             >
               {/* Resize handles */}
-              {['top-left', 'top-right', 'bottom-left', 'bottom-right', 'top', 'bottom', 'left', 'right'].map(handle => (
-                <div
-                  key={handle}
-                  className={`absolute bg-primary border border-primary-foreground ${
-                    ['top', 'bottom', 'left', 'right'].includes(handle) 
-                      ? 'w-2 h-2 cursor-resize' 
-                      : 'w-3 h-3 cursor-nw-resize'
-                  }`}
-                  style={{
-                    [handle.includes('top') ? 'top' : handle.includes('bottom') ? 'bottom' : 'top']: 
-                      handle.includes('top') ? -6 : handle.includes('bottom') ? -6 : '50%',
-                    [handle.includes('left') ? 'left' : handle.includes('right') ? 'right' : 'left']: 
-                      handle.includes('left') ? -6 : handle.includes('right') ? -6 : '50%',
-                    ...(handle === 'top' || handle === 'bottom' ? { transform: 'translateX(-50%)' } : {}),
-                    ...(handle === 'left' || handle === 'right' ? { transform: 'translateY(-50%)' } : {}),
-                  }}
-                  onMouseDown={(e) => handleMouseDown(e, handle)}
-                />
-              ))}
+              {['top-left', 'top-right', 'bottom-left', 'bottom-right', 'top', 'bottom', 'left', 'right'].map(handle => {
+                const isCorner = ['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(handle);
+                const isHorizontal = ['left', 'right'].includes(handle);
+                const isVertical = ['top', 'bottom'].includes(handle);
+                
+                let cursor = 'cursor-move';
+                if (handle === 'top-left' || handle === 'bottom-right') cursor = 'cursor-nw-resize';
+                if (handle === 'top-right' || handle === 'bottom-left') cursor = 'cursor-ne-resize';
+                if (isVertical) cursor = 'cursor-ns-resize';
+                if (isHorizontal) cursor = 'cursor-ew-resize';
+                
+                return (
+                  <div
+                    key={handle}
+                    className={`absolute bg-primary border-2 border-background ${cursor} ${
+                      isCorner ? 'w-4 h-4 rounded-full' : isHorizontal ? 'w-2 h-6' : 'w-6 h-2'
+                    } hover:bg-primary/80 transition-colors z-10`}
+                    style={{
+                      ...(handle.includes('top') ? { top: -8 } : {}),
+                      ...(handle.includes('bottom') ? { bottom: -8 } : {}),
+                      ...(handle.includes('left') ? { left: -8 } : {}),
+                      ...(handle.includes('right') ? { right: -8 } : {}),
+                      ...(handle === 'top' ? { top: -8, left: '50%', transform: 'translateX(-50%)' } : {}),
+                      ...(handle === 'bottom' ? { bottom: -8, left: '50%', transform: 'translateX(-50%)' } : {}),
+                      ...(handle === 'left' ? { left: -8, top: '50%', transform: 'translateY(-50%)' } : {}),
+                      ...(handle === 'right' ? { right: -8, top: '50%', transform: 'translateY(-50%)' } : {}),
+                    }}
+                    onMouseDown={(e) => handleMouseDown(e, handle)}
+                  />
+                );
+              })}
             </div>
           </>
         )}

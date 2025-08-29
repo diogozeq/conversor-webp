@@ -22,38 +22,66 @@ const blobToDataUrl = (blob) => {
 };
 
 const generateOptimizedWebP = async (canvas) => {
-    let minQuality = 0.85;
-    let maxQuality = 1.0;
-    let bestBlob = null;
-
-    const TARGET_MIN_BYTES = 50 * 1024;
-    const TARGET_MAX_BYTES = 100 * 1024;
-    const ITERATIONS = 12;
+    const TARGET_MIN_BYTES = 50 * 1024; // 50KB
+    const TARGET_MAX_BYTES = 100 * 1024; // 100KB
+    const ITERATIONS = 15;
 
     const getWebpBlob = (quality) => canvas.convertToBlob({ type: 'image/webp', quality });
 
-    // Primeira tentativa com qualidade alta
-    let currentBlob = await getWebpBlob(0.95);
-    bestBlob = currentBlob;
-
-    // Se já está no range ideal, retorna
-    if (currentBlob.size >= TARGET_MIN_BYTES && currentBlob.size <= TARGET_MAX_BYTES) {
-        return { blob: currentBlob, size: currentBlob.size };
+    // Teste inicial com qualidade muito alta para verificar se a imagem é pequena
+    let testBlob = await getWebpBlob(0.98);
+    
+    // Se mesmo com qualidade alta está abaixo de 50KB, retorna com qualidade máxima
+    if (testBlob.size < TARGET_MIN_BYTES) {
+        return { blob: testBlob, size: testBlob.size };
     }
 
-    // Busca binária refinada para encontrar qualidade ideal
+    // Se está acima de 100KB mesmo com qualidade baixa, precisa otimizar mais
+    let lowQualityTest = await getWebpBlob(0.5);
+    if (lowQualityTest.size > TARGET_MAX_BYTES) {
+        // Busca uma qualidade ainda menor
+        let minQuality = 0.1;
+        let maxQuality = 0.5;
+        
+        for (let i = 0; i < ITERATIONS; i++) {
+            const currentQuality = (minQuality + maxQuality) / 2;
+            const blob = await getWebpBlob(currentQuality);
+            
+            if (blob.size <= TARGET_MAX_BYTES) {
+                return { blob, size: blob.size };
+            }
+            maxQuality = currentQuality;
+        }
+    }
+
+    // Busca binária normal entre 0.5 e 0.98
+    let minQuality = 0.5;
+    let maxQuality = 0.98;
+    let bestBlob = testBlob;
+    let closestToTarget = Math.abs(testBlob.size - ((TARGET_MIN_BYTES + TARGET_MAX_BYTES) / 2));
+
     for (let i = 0; i < ITERATIONS; i++) {
         const currentQuality = (minQuality + maxQuality) / 2;
         const blob = await getWebpBlob(currentQuality);
+        const distanceToTarget = Math.abs(blob.size - ((TARGET_MIN_BYTES + TARGET_MAX_BYTES) / 2));
         
+        // Se está no range perfeito, retorna imediatamente
         if (blob.size >= TARGET_MIN_BYTES && blob.size <= TARGET_MAX_BYTES) {
-            bestBlob = blob;
-            break;
-        } else if (blob.size > TARGET_MAX_BYTES) {
+            if (distanceToTarget < closestToTarget) {
+                bestBlob = blob;
+                closestToTarget = distanceToTarget;
+            }
+        }
+        
+        if (blob.size > TARGET_MAX_BYTES) {
             maxQuality = currentQuality;
         } else {
             minQuality = currentQuality;
-            bestBlob = blob; // Manter o blob mais próximo do mínimo
+            // Sempre manter o melhor blob encontrado
+            if (distanceToTarget < closestToTarget || blob.size >= TARGET_MIN_BYTES) {
+                bestBlob = blob;
+                closestToTarget = distanceToTarget;
+            }
         }
     }
     
