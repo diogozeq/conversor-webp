@@ -1,4 +1,6 @@
 import React from 'react';
+import { validateFile, sanitizeFileName } from '@/utils/fileValidation';
+import { useToast } from '@/hooks/use-toast';
 
 const UploadIcon: React.FC = () => (
   <svg
@@ -24,6 +26,7 @@ interface DropzoneProps {
 }
 
 const Dropzone: React.FC<DropzoneProps> = ({ onDrop, isDragging, setIsDragging }) => {
+  const { toast } = useToast();
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -41,13 +44,32 @@ const Dropzone: React.FC<DropzoneProps> = ({ onDrop, isDragging, setIsDragging }
     e.stopPropagation();
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
     
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      onDrop(e.dataTransfer.files[0]);
+      const file = e.dataTransfer.files[0];
+      
+      // Validate file security
+      const validation = await validateFile(file);
+      if (!validation.isValid) {
+        toast({
+          title: "Arquivo inválido",
+          description: validation.error,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Sanitize filename for additional security
+      const sanitizedFile = new File([file], sanitizeFileName(file.name), {
+        type: file.type,
+        lastModified: file.lastModified
+      });
+
+      onDrop(sanitizedFile);
       e.dataTransfer.clearData();
     }
   };
@@ -79,7 +101,30 @@ const Dropzone: React.FC<DropzoneProps> = ({ onDrop, isDragging, setIsDragging }
         type="file"
         className="hidden"
         accept="image/*"
-        onChange={(e) => e.target.files && e.target.files.length > 0 && onDrop(e.target.files[0])}
+        onChange={async (e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            const file = e.target.files[0];
+            
+            // Validate file security
+            const validation = await validateFile(file);
+            if (!validation.isValid) {
+              toast({
+                title: "Arquivo inválido", 
+                description: validation.error,
+                variant: "destructive"
+              });
+              return;
+            }
+
+            // Sanitize filename for additional security
+            const sanitizedFile = new File([file], sanitizeFileName(file.name), {
+              type: file.type,
+              lastModified: file.lastModified
+            });
+
+            onDrop(sanitizedFile);
+          }
+        }}
         onClick={(e) => {
           const element = e.target as HTMLInputElement;
           element.value = '';
