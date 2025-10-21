@@ -93,7 +93,7 @@ const generateOptimizedWebP = async (canvas) => {
 };
 
 self.onmessage = async (event) => {
-    const { type, imageDataUrl } = event.data;
+    const { type, imageDataUrl, width: targetWidth, height: targetHeight } = event.data;
 
     // Health check response
     if (type === 'HEALTH_CHECK') {
@@ -106,7 +106,10 @@ self.onmessage = async (event) => {
         const blob = await response.blob();
         const imageBitmap = await createImageBitmap(blob);
         
-        const canvas = new OffscreenCanvas(1000, 1000);
+        // Use provided dimensions or default to 1000x1000
+        const canvasWidth = targetWidth || 1000;
+        const canvasHeight = targetHeight || 1000;
+        const canvas = new OffscreenCanvas(canvasWidth, canvasHeight);
         const ctx = canvas.getContext('2d');
         if (!ctx) {
             throw new Error('Não foi possível obter o contexto do OffscreenCanvas.');
@@ -131,9 +134,9 @@ self.onmessage = async (event) => {
                 sy = (imgHeight - sHeight) / 2;
             }
             
-            ctx.drawImage(imageBitmap, sx, sy, sWidth, sHeight, 0, 0, 1000, 1000);
+            ctx.drawImage(imageBitmap, sx, sy, sWidth, sHeight, 0, 0, canvasWidth, canvasHeight);
         } else {
-            ctx.drawImage(imageBitmap, 0, 0, 1000, 1000);
+            ctx.drawImage(imageBitmap, 0, 0, canvasWidth, canvasHeight);
         }
 
         imageBitmap.close();
@@ -363,7 +366,12 @@ const Index: React.FC = () => {
     }
     
     const imageDataUrl = finalCanvas.toDataURL();
-    workerRef.current?.postMessage({ type: 'OPTIMIZE_CROPPED', imageDataUrl });
+    workerRef.current?.postMessage({ 
+      type: 'OPTIMIZE_CROPPED', 
+      imageDataUrl,
+      width: finalCanvas.width,
+      height: finalCanvas.height
+    });
   };
 
   const handleFinishedDragEvents = {
