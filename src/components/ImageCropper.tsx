@@ -38,18 +38,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onSave, onCancel 
     }
   };
 
-  const makeSquare = () => {
-    if (!imgRef.current) return;
-    
-    const minDimension = Math.min(crop.width, crop.height);
-    const maxX = imageSize.width - crop.x;
-    const maxY = imageSize.height - crop.y;
-    const maxSize = Math.min(minDimension, maxX, maxY);
-    
-    setCrop(prev => ({ ...prev, width: maxSize, height: maxSize }));
-  };
-
-  const getCroppedCanvas = (): HTMLCanvasElement => {
+  const getCroppedCanvas = (forceSquare: boolean = false): HTMLCanvasElement => {
     if (!imgRef.current) throw new Error('Image not loaded');
     
     const image = imgRef.current;
@@ -57,8 +46,21 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onSave, onCancel 
     const scaleX = image.naturalWidth / image.width;
     const scaleY = image.naturalHeight / image.height;
     
-    canvas.width = crop.width * scaleX;
-    canvas.height = crop.height * scaleY;
+    let finalCrop = { ...crop };
+    
+    // If forceSquare is true, make the crop square before processing
+    if (forceSquare) {
+      const minDimension = Math.min(crop.width, crop.height);
+      finalCrop = {
+        x: crop.x + (crop.width - minDimension) / 2,
+        y: crop.y + (crop.height - minDimension) / 2,
+        width: minDimension,
+        height: minDimension
+      };
+    }
+    
+    canvas.width = finalCrop.width * scaleX;
+    canvas.height = finalCrop.height * scaleY;
     const ctx = canvas.getContext('2d');
 
     if (!ctx) throw new Error('Could not get canvas context.');
@@ -69,10 +71,10 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onSave, onCancel 
 
     ctx.drawImage(
       image,
-      crop.x * scaleX,
-      crop.y * scaleY,
-      crop.width * scaleX,
-      crop.height * scaleY,
+      finalCrop.x * scaleX,
+      finalCrop.y * scaleY,
+      finalCrop.width * scaleX,
+      finalCrop.height * scaleY,
       0,
       0,
       canvas.width,
@@ -82,11 +84,11 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onSave, onCancel 
     return canvas;
   };
 
-  const handleSaveCrop = () => {
+  const handleSaveCrop = (forceSquare: boolean = false) => {
     if (!imgRef.current) return;
     setIsSaving(true);
     try {
-      const canvas = getCroppedCanvas();
+      const canvas = getCroppedCanvas(forceSquare);
       onSave(canvas);
     } catch (e) {
       console.error("Error processing crop:", e);
@@ -287,20 +289,22 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onSave, onCancel 
         </Button>
         
         <Button
-          onClick={makeSquare}
+          onClick={() => handleSaveCrop(false)}
+          disabled={isSaving}
           variant="outline"
           className="w-full sm:w-auto"
         >
-          📐 Tornar 1:1
+          {isSaving && <Spinner />}
+          {isSaving ? 'Processando...' : '✂️ Salvar Corte Livre'}
         </Button>
         
         <Button
-          onClick={handleSaveCrop}
+          onClick={() => handleSaveCrop(true)}
           disabled={isSaving}
           className="w-full sm:w-auto bg-gradient-primary hover:opacity-90 tech-glow"
         >
           {isSaving && <Spinner />}
-          {isSaving ? 'Processando...' : 'Salvar Corte'}
+          {isSaving ? 'Processando...' : '📐 Salvar 1:1'}
         </Button>
       </div>
     </div>
