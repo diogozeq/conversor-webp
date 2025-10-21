@@ -334,12 +334,21 @@ const Index: React.FC = () => {
     }
   };
 
-  const handleSaveCrop = async (croppedCanvas: HTMLCanvasElement) => {
+  const handleSaveCrop = async (croppedCanvas: HTMLCanvasElement, forceSquare: boolean) => {
     setStep('converting');
     
     const finalCanvas = document.createElement('canvas');
-    finalCanvas.width = 1000;
-    finalCanvas.height = 1000;
+    
+    if (forceSquare) {
+      // Force to 1000x1000 square
+      finalCanvas.width = 1000;
+      finalCanvas.height = 1000;
+    } else {
+      // Keep the cropped dimensions
+      finalCanvas.width = croppedCanvas.width;
+      finalCanvas.height = croppedCanvas.height;
+    }
+    
     const ctx = finalCanvas.getContext('2d');
     if (!ctx) {
       setError('Não foi possível obter o contexto do canvas para redimensionar.');
@@ -347,7 +356,12 @@ const Index: React.FC = () => {
       return;
     }
     
-    ctx.drawImage(croppedCanvas, 0, 0, 1000, 1000);
+    if (forceSquare) {
+      ctx.drawImage(croppedCanvas, 0, 0, 1000, 1000);
+    } else {
+      ctx.drawImage(croppedCanvas, 0, 0, finalCanvas.width, finalCanvas.height);
+    }
+    
     const imageDataUrl = finalCanvas.toDataURL();
     workerRef.current?.postMessage({ type: 'OPTIMIZE_CROPPED', imageDataUrl });
   };

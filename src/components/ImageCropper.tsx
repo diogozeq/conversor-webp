@@ -5,7 +5,7 @@ import Spinner from './Spinner';
 
 interface ImageCropperProps {
   imageSrc: string;
-  onSave: (croppedCanvas: HTMLCanvasElement) => void;
+  onSave: (croppedCanvas: HTMLCanvasElement, forceSquare: boolean) => void;
   onCancel: () => void;
 }
 
@@ -89,7 +89,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onSave, onCancel 
     setIsSaving(true);
     try {
       const canvas = getCroppedCanvas(forceSquare);
-      onSave(canvas);
+      onSave(canvas, forceSquare);
     } catch (e) {
       console.error("Error processing crop:", e);
       setIsSaving(false);
