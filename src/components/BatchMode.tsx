@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { X, Download } from 'lucide-react';
+import { X, Download, Edit2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import ImageCropper from './ImageCropper';
 
 interface BatchImage {
   id: string;
@@ -22,6 +23,7 @@ const BatchMode: React.FC<BatchModeProps> = ({ onBack, workerRef }) => {
   const [images, setImages] = useState<BatchImage[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [editingImage, setEditingImage] = useState<BatchImage | null>(null);
   const { toast } = useToast();
 
   const addImages = useCallback((files: File[]) => {
@@ -134,6 +136,68 @@ const BatchMode: React.FC<BatchModeProps> = ({ onBack, workerRef }) => {
     });
   }, [images, downloadImage]);
 
+  const handleEditImage = useCallback((image: BatchImage) => {
+    setEditingImage(image);
+  }, []);
+
+  const handleSaveCroppedImage = useCallback(async (canvas: HTMLCanvasElement, forceSquare: boolean) => {
+    if (!workerRef.current || !editingImage) return;
+
+    try {
+      const dataUrl = canvas.toDataURL('image/png');
+      
+      const result = await new Promise<{ blob: Blob; size: number }>((resolve, reject) => {
+        const handler = (event: MessageEvent) => {
+          const { status, blob, size, message } = event.data;
+          if (status === 'success' && blob && size !== undefined) {
+            workerRef.current?.removeEventListener('message', handler);
+            resolve({ blob, size });
+          } else if (status === 'error') {
+            workerRef.current?.removeEventListener('message', handler);
+            reject(new Error(message));
+          }
+        };
+        
+        workerRef.current?.addEventListener('message', handler);
+        workerRef.current?.postMessage({ 
+          type: 'OPTIMIZE_CROPPED', 
+          imageDataUrl: dataUrl,
+          width: canvas.width,
+          height: canvas.height
+        });
+      });
+
+      const newConvertedUrl = URL.createObjectURL(result.blob);
+      
+      setImages(prev => prev.map(img => {
+        if (img.id === editingImage.id) {
+          if (img.converted) URL.revokeObjectURL(img.converted);
+          return {
+            ...img,
+            converted: newConvertedUrl,
+            size: result.size
+          };
+        }
+        return img;
+      }));
+
+      toast({
+        title: "✨ Imagem editada!",
+        description: `Nova imagem: ${(result.size / 1024).toFixed(1)} KB`
+      });
+
+      setEditingImage(null);
+    } catch (error) {
+      console.error('Erro ao processar imagem editada:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível processar a imagem editada.",
+        variant: "destructive"
+      });
+      setEditingImage(null);
+    }
+  }, [workerRef, editingImage, toast]);
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -153,6 +217,16 @@ const BatchMode: React.FC<BatchModeProps> = ({ onBack, workerRef }) => {
   const pendingCount = images.filter(img => img.status === 'pending').length;
   const doneCount = images.filter(img => img.status === 'done').length;
 
+  if (editingImage) {
+    return (
+      <ImageCropper
+        imageSrc={editingImage.converted || editingImage.preview}
+        onSave={handleSaveCroppedImage}
+        onCancel={() => setEditingImage(null)}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex justify-between items-center">
@@ -160,7 +234,7 @@ const BatchMode: React.FC<BatchModeProps> = ({ onBack, workerRef }) => {
           <h2 className="text-3xl font-bold gradient-text">Modo em Lote</h2>
           <p className="text-muted-foreground">
             {images.length === 0 
-              ? 'Adicione suas imagens' 
+              ? 'Arraste e adicione quantas imagens quiser' 
               : `${images.length} imagens (${doneCount} convertidas)`}
           </p>
         </div>
@@ -183,7 +257,9 @@ const BatchMode: React.FC<BatchModeProps> = ({ onBack, workerRef }) => {
             <p className="text-xl font-semibold text-foreground mb-2">
               Arraste suas imagens aqui
             </p>
-            <p className="text-muted-foreground">ou clique para selecionar múltiplos arquivos</p>
+            <p className="text-muted-foreground">
+              Você pode adicionar quantas vezes quiser antes de converter
+            </p>
           </div>
           <input
             id="batch-file-input"
@@ -236,11 +312,23 @@ const BatchMode: React.FC<BatchModeProps> = ({ onBack, workerRef }) => {
                 key={image.id}
                 className={`relative group rounded-lg overflow-hidden border-2 transition-all ${
                   image.status === 'done'
-                    ? 'border-primary shadow-glow'
+                    ? 'border-primary shadow-glow cursor-grab active:cursor-grabbing'
                     : image.status === 'processing'
                     ? 'border-primary animate-pulse'
                     : 'border-border'
                 }`}
+                draggable={image.status === 'done'}
+                onDragStart={(e) => {
+                  if (image.converted) {
+                    e.dataTransfer.effectAllowed = 'copy';
+                    fetch(image.converted)
+                      .then(r => r.blob())
+                      .then(blob => {
+                        const file = new File([blob], image.fileName || 'image.webp', { type: 'image/webp' });
+                        e.dataTransfer.setData('DownloadURL', `image/webp:${file.name}:${image.converted}`);
+                      });
+                  }
+                }}
               >
                 <div className="aspect-square relative">
                   <img
@@ -257,6 +345,13 @@ const BatchMode: React.FC<BatchModeProps> = ({ onBack, workerRef }) => {
                   
                   {image.status === 'done' && (
                     <div className="absolute inset-0 bg-background/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => handleEditImage(image)}
+                        variant="secondary"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
                       <Button
                         size="sm"
                         onClick={() => downloadImage(image)}
@@ -277,10 +372,17 @@ const BatchMode: React.FC<BatchModeProps> = ({ onBack, workerRef }) => {
                 </button>
                 
                 <div className="p-2 bg-card">
-                  <p className="text-xs truncate">{image.fileName || image.file.name}</p>
+                  <p className="text-xs truncate" title={image.fileName || image.file.name}>
+                    {image.fileName || image.file.name}
+                  </p>
                   {image.size && (
                     <p className="text-xs text-muted-foreground">
                       {(image.size / 1024).toFixed(1)} KB
+                    </p>
+                  )}
+                  {image.status === 'done' && (
+                    <p className="text-xs text-primary mt-1">
+                      Arraste ou clique em baixar
                     </p>
                   )}
                 </div>
