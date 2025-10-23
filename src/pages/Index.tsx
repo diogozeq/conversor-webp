@@ -25,8 +25,8 @@ const blobToDataUrl = (blob) => {
 };
 
 const generateOptimizedWebP = async (canvas) => {
-    const TARGET_MIN_BYTES = 50 * 1024; // 50KB
-    const TARGET_MAX_BYTES = 100 * 1024; // 100KB
+    const TARGET_MIN_BYTES = 30 * 1024; // 30KB
+    const TARGET_MAX_BYTES = 50 * 1024; // 50KB
     const ITERATIONS = 15;
 
     const getWebpBlob = (quality) => canvas.convertToBlob({ type: 'image/webp', quality });
@@ -34,12 +34,12 @@ const generateOptimizedWebP = async (canvas) => {
     // Teste inicial com qualidade muito alta para verificar se a imagem é pequena
     let testBlob = await getWebpBlob(0.98);
     
-    // Se mesmo com qualidade alta está abaixo de 50KB, retorna com qualidade máxima
+    // Se mesmo com qualidade alta está abaixo de 30KB, retorna com qualidade máxima
     if (testBlob.size < TARGET_MIN_BYTES) {
         return { blob: testBlob, size: testBlob.size };
     }
 
-    // Se está acima de 100KB mesmo com qualidade baixa, precisa otimizar mais
+    // Se está acima de 50KB mesmo com qualidade baixa, precisa otimizar mais
     let lowQualityTest = await getWebpBlob(0.5);
     if (lowQualityTest.size > TARGET_MAX_BYTES) {
         // Busca uma qualidade ainda menor
