@@ -5,9 +5,12 @@ import Dropzone from '@/components/Dropzone';
 import ImagePreview from '@/components/ImagePreview';
 import ImageCropper from '@/components/ImageCropper';
 import Spinner from '@/components/Spinner';
+import ModeSelector from '@/components/ModeSelector';
+import BatchMode from '@/components/BatchMode';
 import { saveImageToDB, generateImageURL, cleanupOldImages } from '@/utils/indexeddb';
 import { registerServiceWorker, isServiceWorkerActive } from '@/utils/serviceWorkerManager';
 
+type AppMode = 'select' | 'individual' | 'batch';
 type AppStep = 'idle' | 'converting' | 'finished' | 'cropping';
 
 // Web Worker code for image processing
@@ -155,6 +158,7 @@ self.onmessage = async (event) => {
 `;
 
 const Index: React.FC = () => {
+  const [mode, setMode] = useState<AppMode>('select');
   const [originalImage, setOriginalImage] = useState<string | null>(null);
   const [convertedImageUrl, setConvertedImageUrl] = useState<string | null>(null);
   const [convertedFileName, setConvertedFileName] = useState<string | null>(null);
@@ -401,13 +405,30 @@ const Index: React.FC = () => {
   };
 
   const renderContent = () => {
+    // Mode selection
+    if (mode === 'select') {
+      return <ModeSelector onSelectMode={setMode} />;
+    }
+
+    // Batch mode
+    if (mode === 'batch') {
+      return <BatchMode onBack={() => setMode('select')} workerRef={workerRef} />;
+    }
+
+    // Individual mode
     switch (step) {
       case 'idle':
         return (
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8">
+            <div className="flex justify-between items-center w-full max-w-2xl mb-4">
+              <Button onClick={() => setMode('select')} variant="outline">
+                ← Voltar
+              </Button>
+            </div>
+            
             <div className="text-center mb-8">
               <h1 className="text-4xl md:text-6xl font-bold gradient-text mb-4">
-                Image Converter Pro
+                Modo Individual
               </h1>
               <p className="text-xl text-muted-foreground max-w-2xl">
                 Converta suas imagens para WebP 1000x1000 com qualidade otimizada e 
