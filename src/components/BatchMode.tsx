@@ -243,43 +243,27 @@ const BatchMode: React.FC<BatchModeProps> = ({ onBack, workerRef }) => {
         </Button>
       </div>
 
-      {images.length === 0 ? (
-        <div
-          onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }}
-          onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={handleDrop}
-          onClick={() => document.getElementById('batch-file-input')?.click()}
-          className={`w-full h-80 rounded-xl border-2 border-dashed transition-all duration-300 flex flex-col items-center justify-center cursor-pointer bg-card shadow-card
-            ${isDragging ? 'border-primary bg-primary/5 tech-glow' : 'border-border hover:border-primary hover:bg-primary/5'}`}
-        >
-          <div className="text-center pointer-events-none">
-            <p className="text-xl font-semibold text-foreground mb-2">
-              Arraste suas imagens aqui
-            </p>
-            <p className="text-muted-foreground">
-              Você pode adicionar quantas vezes quiser antes de converter
-            </p>
-          </div>
-          <input
-            id="batch-file-input"
-            type="file"
-            multiple
-            accept="image/*"
-            className="hidden"
-            onChange={handleFileInput}
-          />
-        </div>
-      ) : (
-        <>
-          <div className="flex gap-4">
-            <Button
-              onClick={() => document.getElementById('batch-file-input')?.click()}
-              variant="outline"
-              disabled={isProcessing}
-            >
-              + Adicionar Mais
-            </Button>
+      <div
+        onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}
+        className="w-full"
+      >
+        {images.length === 0 ? (
+          <div
+            onClick={() => document.getElementById('batch-file-input')?.click()}
+            className={`w-full h-80 rounded-xl border-2 border-dashed transition-all duration-300 flex flex-col items-center justify-center cursor-pointer bg-card shadow-card
+              ${isDragging ? 'border-primary bg-primary/5 tech-glow' : 'border-border hover:border-primary hover:bg-primary/5'}`}
+          >
+            <div className="text-center pointer-events-none">
+              <p className="text-xl font-semibold text-foreground mb-2">
+                Arraste suas imagens aqui
+              </p>
+              <p className="text-muted-foreground">
+                Você pode adicionar quantas vezes quiser antes de converter
+              </p>
+            </div>
             <input
               id="batch-file-input"
               type="file"
@@ -288,54 +272,87 @@ const BatchMode: React.FC<BatchModeProps> = ({ onBack, workerRef }) => {
               className="hidden"
               onChange={handleFileInput}
             />
-            
-            {pendingCount > 0 && (
-              <Button
-                onClick={processImages}
-                disabled={isProcessing}
-                className="bg-gradient-primary hover:opacity-90"
-              >
-                {isProcessing ? '⏳ Convertendo...' : `🚀 Converter ${pendingCount} Imagens`}
-              </Button>
-            )}
-            
-            {doneCount > 0 && (
-              <Button onClick={downloadAll} variant="secondary">
-                📥 Baixar Todas ({doneCount})
-              </Button>
-            )}
           </div>
+        ) : (
+          <>
+            <div
+              className={`mb-4 p-6 rounded-xl border-2 border-dashed transition-all duration-300 flex items-center justify-between bg-card
+                ${isDragging ? 'border-primary bg-primary/5 tech-glow' : 'border-border'}`}
+            >
+              <div className="flex items-center gap-4">
+                <p className="text-muted-foreground">
+                  {isDragging ? '📤 Solte as imagens aqui' : '📥 Arraste mais imagens aqui ou use os botões'}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => document.getElementById('batch-file-input')?.click()}
+                  variant="outline"
+                  disabled={isProcessing}
+                  size="sm"
+                >
+                  + Adicionar
+                </Button>
+                {pendingCount > 0 && (
+                  <Button
+                    onClick={processImages}
+                    disabled={isProcessing}
+                    className="bg-gradient-primary hover:opacity-90"
+                    size="sm"
+                  >
+                    {isProcessing ? '⏳ Convertendo...' : `🚀 Converter ${pendingCount}`}
+                  </Button>
+                )}
+                {doneCount > 0 && (
+                  <Button onClick={downloadAll} variant="secondary" size="sm">
+                    📥 Baixar Todas ({doneCount})
+                  </Button>
+                )}
+              </div>
+            </div>
+            <input
+              id="batch-file-input"
+              type="file"
+              multiple
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileInput}
+            />
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {images.map(image => (
               <div
                 key={image.id}
                 className={`relative group rounded-lg overflow-hidden border-2 transition-all ${
                   image.status === 'done'
-                    ? 'border-primary shadow-glow cursor-grab active:cursor-grabbing'
+                    ? 'border-primary shadow-glow'
                     : image.status === 'processing'
                     ? 'border-primary animate-pulse'
                     : 'border-border'
                 }`}
-                draggable={image.status === 'done'}
-                onDragStart={(e) => {
-                  if (image.converted) {
-                    e.dataTransfer.effectAllowed = 'copy';
-                    fetch(image.converted)
-                      .then(r => r.blob())
-                      .then(blob => {
-                        const file = new File([blob], image.fileName || 'image.webp', { type: 'image/webp' });
-                        e.dataTransfer.setData('DownloadURL', `image/webp:${file.name}:${image.converted}`);
-                      });
-                  }
-                }}
               >
                 <div className="aspect-square relative">
-                  <img
-                    src={image.converted || image.preview}
-                    alt={image.file.name}
-                    className="w-full h-full object-cover"
-                  />
+                  {image.status === 'done' && image.converted ? (
+                    <a
+                      href={image.converted}
+                      download={image.fileName}
+                      draggable={true}
+                      className="block w-full h-full cursor-grab active:cursor-grabbing"
+                    >
+                      <img
+                        src={image.converted}
+                        alt={image.file.name}
+                        className="w-full h-full object-cover pointer-events-none"
+                        draggable={false}
+                      />
+                    </a>
+                  ) : (
+                    <img
+                      src={image.preview}
+                      alt={image.file.name}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
                   
                   {image.status === 'processing' && (
                     <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
@@ -389,8 +406,9 @@ const BatchMode: React.FC<BatchModeProps> = ({ onBack, workerRef }) => {
               </div>
             ))}
           </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 };
